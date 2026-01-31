@@ -8,8 +8,8 @@ credentials.json
 # n8n MCP config (contains API keys)
 .mcp.json
 
-# JavaScript files with hardcoded API keys - DO NOT COMMIT
-*.js
+# Config with real API keys (use config.example.json as template)
+config.json
 
 # PowerShell scripts
 *.ps1

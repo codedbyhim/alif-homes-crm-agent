@@ -1,0 +1,888 @@
+{
+  "name": "Zoho CRM Custom Module AI Analyzer",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "node-1-trigger",
+      "name": "Start Workflow",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "config-1",
+              "name": "zoho_base_url",
+              "value": "https://www.zohoapis.eu/crm/v3",
+              "type": "string"
+            },
+            {
+              "id": "config-2",
+              "name": "target_modules",
+              "value": "=[\"Rental_Properties\",\"Rental_Management\",\"Tenants\",\"Unit_Owner_Database\",\"Property_Units_Database\",\"Bookings\",\"Zoho_Books\",\"Guests_Database\",\"Monthly_Rent\",\"Rentals_Service\",\"Airbnb_Services\",\"Rental_Water_Bills\",\"Airbnb_Water_Bills\",\"Rental_Payments\"]",
+              "type": "array"
+            },
+            {
+              "id": "config-3",
+              "name": "api_call_count",
+              "value": 0,
+              "type": "number"
+            },
+            {
+              "id": "config-4",
+              "name": "start_time",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "config-5",
+              "name": "sample_records_per_module",
+              "value": 5,
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": false
+      },
+      "id": "node-2-config",
+      "name": "Set Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.zohoapis.eu/crm/v3/settings/modules",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "per_page",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "node-3-test-auth",
+      "name": "Test Authentication",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [440, 300],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "ZOHO_OAUTH2_CREDENTIAL_ID",
+          "name": "Zoho CRM EU OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.statusCode }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-4-check-auth",
+      "name": "Check Auth Status",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "error-1",
+              "name": "error",
+              "value": "true",
+              "type": "boolean"
+            },
+            {
+              "id": "error-2",
+              "name": "error_type",
+              "value": "authentication_failed",
+              "type": "string"
+            },
+            {
+              "id": "error-3",
+              "name": "status_code",
+              "value": "={{ $json.statusCode }}",
+              "type": "number"
+            },
+            {
+              "id": "error-4",
+              "name": "message",
+              "value": "={{ $json.body?.message || 'OAuth2 authentication failed. Please check your Zoho CRM credentials and ensure the OAuth2 connection is properly configured.' }}",
+              "type": "string"
+            },
+            {
+              "id": "error-5",
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false
+      },
+      "id": "node-5-auth-error",
+      "name": "Auth Error Handler",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [880, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.zohoapis.eu/crm/v3/settings/modules",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "node-6-get-modules",
+      "name": "Get All Modules",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [880, 300],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "ZOHO_OAUTH2_CREDENTIAL_ID",
+          "name": "Zoho CRM EU OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Target custom modules to analyze\nconst targetModules = [\n  'Rental_Properties',\n  'Rental_Management',\n  'Tenants',\n  'Unit_Owner_Database',\n  'Property_Units_Database',\n  'Bookings',\n  'Zoho_Books',\n  'Guests_Database',\n  'Monthly_Rent',\n  'Rentals_Service',\n  'Airbnb_Services',\n  'Rental_Water_Bills',\n  'Airbnb_Water_Bills',\n  'Rental_Payments'\n];\n\n// Get all modules from API response\nconst allModules = $input.first().json.modules || [];\n\n// Filter to only our target custom modules\nconst customModules = allModules.filter(m => targetModules.includes(m.api_name));\n\n// Log found vs expected\nconst foundModuleNames = customModules.map(m => m.api_name);\nconst missingModules = targetModules.filter(t => !foundModuleNames.includes(t));\n\n// Return each module as a separate item for processing\nreturn customModules.map((module, index) => ({\n  json: {\n    index: index + 1,\n    total: customModules.length,\n    api_name: module.api_name,\n    module_name: module.module_name || module.api_name,\n    singular_label: module.singular_label || module.api_name,\n    plural_label: module.plural_label || module.api_name,\n    generated_type: module.generated_type || 'custom',\n    editable: module.editable !== false,\n    deletable: module.deletable !== false,\n    web_link: module.web_link || '',\n    api_supported: module.api_supported !== false,\n    found_modules_count: customModules.length,\n    missing_modules: missingModules\n  }\n}));"
+      },
+      "id": "node-7-filter-modules",
+      "name": "Filter Custom Modules",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "queue-1",
+              "name": "processing_started",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "queue-2",
+              "name": "total_modules",
+              "value": "={{ $json.total }}",
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true
+      },
+      "id": "node-8-create-queue",
+      "name": "Create Module Queue",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1320, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "node-9-loop",
+      "name": "Process Modules Loop",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1540, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.zohoapis.eu/crm/v3/settings/modules/{{ $json.api_name }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "node-10-module-details",
+      "name": "Get Module Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1760, 300],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "ZOHO_OAUTH2_CREDENTIAL_ID",
+          "name": "Zoho CRM EU OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 0.5,
+        "unit": "seconds"
+      },
+      "id": "node-11-delay-1",
+      "name": "Rate Limit Delay 1",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1980, 300],
+      "webhookId": "delay-1"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.zohoapis.eu/crm/v3/settings/fields?module={{ $('Process Modules Loop').item.json.api_name }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "node-12-get-fields",
+      "name": "Get Module Fields",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [2200, 300],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "ZOHO_OAUTH2_CREDENTIAL_ID",
+          "name": "Zoho CRM EU OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 0.5,
+        "unit": "seconds"
+      },
+      "id": "node-13-delay-2",
+      "name": "Rate Limit Delay 2",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2420, 300],
+      "webhookId": "delay-2"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.zohoapis.eu/crm/v3/{{ $('Process Modules Loop').item.json.api_name }}?per_page=5",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "node-14-sample-records",
+      "name": "Get Sample Records",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [2640, 300],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "ZOHO_OAUTH2_CREDENTIAL_ID",
+          "name": "Zoho CRM EU OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Get data from previous nodes\nconst moduleInfo = $('Process Modules Loop').item.json;\nconst moduleDetails = $('Get Module Details').item.json;\nconst fieldsResponse = $('Get Module Fields').item.json;\nconst recordsResponse = $('Get Sample Records').item.json;\n\n// Extract fields array\nconst fields = fieldsResponse.fields || [];\n\n// Identify lookup fields for relationship detection\nconst lookupFields = fields.filter(f => f.data_type === 'lookup');\nconst relationshipHints = lookupFields.map(f => ({\n  field_api_name: f.api_name,\n  field_display_label: f.display_label,\n  related_module: f.lookup?.module?.api_name || 'unknown',\n  related_module_name: f.lookup?.module?.module_name || 'unknown'\n}));\n\n// Categorize fields by type\nconst fieldsByType = {};\nfields.forEach(f => {\n  const type = f.data_type || 'unknown';\n  if (!fieldsByType[type]) fieldsByType[type] = [];\n  fieldsByType[type].push(f.api_name);\n});\n\n// Extract key field information\nconst fieldList = fields.map(f => ({\n  api_name: f.api_name,\n  display_label: f.display_label,\n  data_type: f.data_type,\n  required: f.system_mandatory || false,\n  custom_field: f.custom_field || false,\n  unique: f.unique || false,\n  max_length: f.length || null,\n  json_type: f.json_type || null\n}));\n\n// Get sample records\nconst sampleRecords = (recordsResponse.data || []).slice(0, 5);\n\n// Build comprehensive module data object\nreturn [{\n  json: {\n    // Basic info\n    api_name: moduleInfo.api_name,\n    module_name: moduleInfo.module_name,\n    index: moduleInfo.index,\n    total: moduleInfo.total,\n    \n    // Module metadata\n    details: {\n      singular_label: moduleInfo.singular_label,\n      plural_label: moduleInfo.plural_label,\n      generated_type: moduleInfo.generated_type,\n      editable: moduleInfo.editable,\n      deletable: moduleInfo.deletable,\n      web_link: moduleInfo.web_link,\n      api_supported: moduleInfo.api_supported\n    },\n    \n    // Field information\n    fields: {\n      total_count: fields.length,\n      custom_field_count: fields.filter(f => f.custom_field).length,\n      required_field_count: fields.filter(f => f.system_mandatory).length,\n      fields_by_type: fieldsByType,\n      field_list: fieldList\n    },\n    \n    // Relationship information\n    relationships: {\n      lookup_count: lookupFields.length,\n      lookups: relationshipHints\n    },\n    \n    // Sample data\n    sample_records: {\n      count: sampleRecords.length,\n      records: sampleRecords.map(r => {\n        // Simplify record data for AI analysis\n        const simplified = {};\n        Object.keys(r).forEach(key => {\n          if (r[key] !== null && typeof r[key] !== 'object') {\n            simplified[key] = r[key];\n          } else if (r[key] && typeof r[key] === 'object' && r[key].name) {\n            simplified[key] = r[key].name; // For lookup fields\n          }\n        });\n        return simplified;\n      })\n    }\n  }\n}];"
+      },
+      "id": "node-15-merge-data",
+      "name": "Merge Module Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2860, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze this Zoho CRM custom module for a property management business:\n\n**Module:** {{ $json.api_name }} ({{ $json.module_name }})\n**Progress:** Module {{ $json.index }} of {{ $json.total }}\n\n**Field Statistics:**\n- Total Fields: {{ $json.fields.total_count }}\n- Custom Fields: {{ $json.fields.custom_field_count }}\n- Required Fields: {{ $json.fields.required_field_count }}\n\n**Fields by Type:**\n{{ JSON.stringify($json.fields.fields_by_type, null, 2) }}\n\n**Top 25 Fields:**\n{{ JSON.stringify($json.fields.field_list.slice(0, 25), null, 2) }}\n\n**Detected Relationships ({{ $json.relationships.lookup_count }} lookups):**\n{{ JSON.stringify($json.relationships.lookups, null, 2) }}\n\n**Sample Records ({{ $json.sample_records.count }}):**\n{{ JSON.stringify($json.sample_records.records, null, 2) }}\n\nProvide a detailed analysis in the following JSON structure:\n{\n  \"purpose\": \"Clear description of what this module is used for in a property/rental management context\",\n  \"key_fields\": [\"field1\", \"field2\", \"field3\"],\n  \"key_fields_explanation\": \"Why these fields are most important\",\n  \"data_quality_score\": 85,\n  \"data_quality_observations\": [\"observation 1\", \"observation 2\"],\n  \"relationship_analysis\": {\n    \"connected_modules\": [\"Module1\", \"Module2\"],\n    \"relationship_description\": \"How this module connects to others\"\n  },\n  \"automation_opportunities\": [\n    {\n      \"name\": \"Automation name\",\n      \"description\": \"What it would do\",\n      \"trigger\": \"What would trigger it\",\n      \"benefit\": \"Expected benefit\"\n    }\n  ],\n  \"improvement_suggestions\": [\"suggestion 1\", \"suggestion 2\"]\n}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an expert Zoho CRM consultant specializing in property management and vacation rental businesses. Your task is to analyze CRM module structures and provide actionable insights.\n\nContext: This is for a property management company that manages:\n- Rental properties (long-term)\n- Airbnb/vacation rentals (short-term)\n- Tenants and guests\n- Property owners\n- Payments and billing (including water bills)\n\nBe specific and practical in your analysis. Focus on:\n1. Understanding the business purpose of each module\n2. Identifying data quality issues from sample records\n3. Finding relationships between modules\n4. Suggesting automation opportunities\n\nAlways output valid JSON matching the requested structure.",
+          "maxIterations": 5,
+          "returnIntermediateSteps": false
+        }
+      },
+      "id": "node-16-ai-analysis",
+      "name": "AI Module Analysis",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [3080, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 2000,
+          "responseFormat": "json_object"
+        }
+      },
+      "id": "node-18-openai-mini",
+      "name": "OpenAI GPT-4o-mini",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [3080, 520],
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "fromJson",
+        "jsonSchemaExample": "{\n  \"purpose\": \"Stores information about rental properties available for lease\",\n  \"key_fields\": [\"Property_Name\", \"Address\", \"Monthly_Rent\", \"Status\"],\n  \"key_fields_explanation\": \"These fields are essential for property identification and rental pricing\",\n  \"data_quality_score\": 85,\n  \"data_quality_observations\": [\"Some addresses are incomplete\", \"Monthly rent values are consistently filled\"],\n  \"relationship_analysis\": {\n    \"connected_modules\": [\"Tenants\", \"Unit_Owner_Database\"],\n    \"relationship_description\": \"Links to tenants who rent the property and owners who own it\"\n  },\n  \"automation_opportunities\": [\n    {\n      \"name\": \"Lease Expiry Reminder\",\n      \"description\": \"Send reminders 30 days before lease expiry\",\n      \"trigger\": \"Scheduled check of lease end dates\",\n      \"benefit\": \"Reduce missed renewals and vacancies\"\n    }\n  ],\n  \"improvement_suggestions\": [\"Add property photos field\", \"Include property type dropdown\"]\n}"
+      },
+      "id": "node-19-parser",
+      "name": "Module Analysis Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [3080, 720]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "store-1",
+              "name": "module_analysis",
+              "value": "={{ $json.output }}",
+              "type": "object"
+            },
+            {
+              "id": "store-2",
+              "name": "analyzed_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true
+      },
+      "id": "node-17-store-analysis",
+      "name": "Store Module Analysis",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [3300, 300]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "all_modules",
+        "include": "allFieldsExcept",
+        "fieldsToExclude": "sample_records.records"
+      },
+      "id": "node-20-aggregate",
+      "name": "Aggregate All Analyses",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [3520, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze the relationships and patterns across all {{ $json.all_modules.length }} Zoho CRM custom modules for this property management business:\n\n**All Module Analyses:**\n{{ JSON.stringify($json.all_modules.map(m => ({\n  api_name: m.api_name,\n  module_name: m.module_name,\n  purpose: m.module_analysis?.purpose || 'Unknown',\n  field_count: m.fields?.total_count || 0,\n  relationships: m.relationships?.lookups || [],\n  data_quality_score: m.module_analysis?.data_quality_score || 0\n})), null, 2) }}\n\nProvide comprehensive cross-module analysis in this JSON structure:\n{\n  \"relationship_map\": {\n    \"connections\": [\n      {\"from\": \"Module1\", \"to\": \"Module2\", \"type\": \"lookup\", \"field\": \"field_name\", \"cardinality\": \"many_to_one\"}\n    ],\n    \"hub_modules\": [\"Most connected modules\"],\n    \"data_flow_description\": \"How data flows between modules\",\n    \"mermaid_diagram\": \"graph TD\\n  RP[Rental_Properties] --> T[Tenants]\\n  ...\"\n  },\n  \"business_processes\": [\n    {\n      \"name\": \"Process Name\",\n      \"description\": \"What this process does\",\n      \"modules_involved\": [\"Module1\", \"Module2\"],\n      \"typical_flow\": \"Step 1 -> Step 2 -> Step 3\",\n      \"gaps_identified\": [\"Missing automation\", \"Manual step required\"]\n    }\n  ],\n  \"data_quality\": {\n    \"overall_score\": 78,\n    \"strongest_modules\": [\"Module with best data\"],\n    \"weakest_modules\": [\"Module needing attention\"],\n    \"critical_issues\": [\n      {\"module\": \"ModuleName\", \"issue\": \"Description\", \"severity\": \"high\", \"recommendation\": \"Fix suggestion\"}\n    ]\n  },\n  \"executive_summary\": {\n    \"overview\": \"2-3 sentence summary of the CRM setup\",\n    \"key_findings\": [\"Finding 1\", \"Finding 2\", \"Finding 3\"],\n    \"health_score\": 82,\n    \"top_strengths\": [\"Strength 1\", \"Strength 2\"],\n    \"top_opportunities\": [\"Opportunity 1\", \"Opportunity 2\"]\n  }\n}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a senior CRM architect and business analyst specializing in property management systems. Analyze the complete CRM structure to:\n\n1. Map all relationships between modules\n2. Identify business processes\n3. Assess overall data quality\n4. Generate a Mermaid diagram showing module connections\n\nContext - This is a property management company handling:\n- Long-term rentals (Rental_Properties, Tenants, Monthly_Rent, Rental_Payments)\n- Short-term/Airbnb rentals (Airbnb_Services, Guests_Database, Bookings)\n- Property owners (Unit_Owner_Database)\n- Utility billing (Rental_Water_Bills, Airbnb_Water_Bills)\n\nBe strategic in your analysis. Focus on:\n- How modules work together\n- Where processes could be improved\n- What automations would help most\n\nGenerate a valid Mermaid diagram using 'graph TD' format. Use short node IDs.\nAlways output valid JSON matching the requested structure.",
+          "maxIterations": 8,
+          "returnIntermediateSteps": false
+        }
+      },
+      "id": "node-21-cross-analysis",
+      "name": "AI Cross-Module Analysis",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [3740, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {
+          "temperature": 0.4,
+          "maxTokens": 4000,
+          "responseFormat": "json_object"
+        }
+      },
+      "id": "node-22-gpt4",
+      "name": "OpenAI GPT-4o",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [3740, 520],
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "fromJson",
+        "jsonSchemaExample": "{\n  \"relationship_map\": {\n    \"connections\": [\n      {\"from\": \"Rental_Properties\", \"to\": \"Tenants\", \"type\": \"lookup\", \"field\": \"Property\", \"cardinality\": \"one_to_many\"},\n      {\"from\": \"Tenants\", \"to\": \"Monthly_Rent\", \"type\": \"lookup\", \"field\": \"Tenant\", \"cardinality\": \"one_to_many\"}\n    ],\n    \"hub_modules\": [\"Rental_Properties\", \"Tenants\"],\n    \"data_flow_description\": \"Data flows from property owners through properties to tenants and their payments\",\n    \"mermaid_diagram\": \"graph TD\\n  UO[Unit_Owner_Database] --> RP[Rental_Properties]\\n  RP --> T[Tenants]\\n  T --> MR[Monthly_Rent]\\n  T --> RP2[Rental_Payments]\\n  RP --> B[Bookings]\\n  B --> G[Guests_Database]\"\n  },\n  \"business_processes\": [\n    {\n      \"name\": \"Tenant Onboarding\",\n      \"description\": \"Process of adding a new tenant to a rental property\",\n      \"modules_involved\": [\"Tenants\", \"Rental_Properties\", \"Monthly_Rent\"],\n      \"typical_flow\": \"Create Tenant -> Link to Property -> Setup Monthly Rent Records\",\n      \"gaps_identified\": [\"No automated welcome email\", \"Manual rent record creation\"]\n    }\n  ],\n  \"data_quality\": {\n    \"overall_score\": 78,\n    \"strongest_modules\": [\"Rental_Properties\"],\n    \"weakest_modules\": [\"Guests_Database\"],\n    \"critical_issues\": [\n      {\"module\": \"Guests_Database\", \"issue\": \"Missing email addresses in 40% of records\", \"severity\": \"high\", \"recommendation\": \"Make email required field\"}\n    ]\n  },\n  \"executive_summary\": {\n    \"overview\": \"Well-structured CRM with clear separation between rental and Airbnb operations. Strong property-tenant relationships but needs improved automation.\",\n    \"key_findings\": [\"14 custom modules covering full rental lifecycle\", \"Hub modules are Rental_Properties and Tenants\", \"Water billing is separate for rentals vs Airbnb\"],\n    \"health_score\": 78,\n    \"top_strengths\": [\"Comprehensive module coverage\", \"Clear data relationships\"],\n    \"top_opportunities\": [\"Automate monthly rent generation\", \"Improve guest data collection\"]\n  }\n}"
+      },
+      "id": "node-23-cross-parser",
+      "name": "Cross Analysis Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [3740, 720]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Based on the complete CRM analysis, generate actionable recommendations and n8n workflow ideas:\n\n**Cross-Module Analysis Results:**\n{{ JSON.stringify($json.output, null, 2) }}\n\nProvide recommendations in this JSON structure:\n{\n  \"optimization_recommendations\": [\n    {\n      \"priority\": \"High\",\n      \"category\": \"Automation\",\n      \"title\": \"Short title\",\n      \"description\": \"Detailed description of what to do\",\n      \"expected_impact\": \"What benefit this provides\",\n      \"implementation_effort\": \"Easy\",\n      \"modules_affected\": [\"Module1\", \"Module2\"]\n    }\n  ],\n  \"suggested_n8n_workflows\": [\n    {\n      \"workflow_name\": \"Auto-Generate Monthly Rent Records\",\n      \"trigger_type\": \"Schedule\",\n      \"trigger_details\": \"1st of every month at 8:00 AM\",\n      \"modules_involved\": [\"Tenants\", \"Monthly_Rent\", \"Rental_Properties\"],\n      \"description\": \"Automatically creates monthly rent records for all active tenants\",\n      \"key_steps\": [\"Fetch active tenants\", \"Get property rent amount\", \"Create rent record\", \"Send reminder email\"],\n      \"estimated_time_saved\": \"2 hours per month\",\n      \"complexity\": \"Medium\"\n    }\n  ],\n  \"quick_wins\": [\n    {\n      \"action\": \"What to do\",\n      \"time_to_implement\": \"30 minutes\",\n      \"impact\": \"Immediate benefit\"\n    }\n  ],\n  \"long_term_improvements\": [\n    {\n      \"initiative\": \"Strategic improvement\",\n      \"description\": \"What it involves\",\n      \"timeline\": \"3-6 months\",\n      \"expected_roi\": \"Expected return\"\n    }\n  ]\n}\n\nGenerate:\n- 10 optimization recommendations (mix of High/Medium/Low priority)\n- 5 specific n8n workflow ideas tailored to this property management business\n- 3 quick wins that can be done immediately\n- 2 long-term strategic improvements",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an n8n automation expert and CRM consultant. Generate practical, implementable recommendations based on the CRM analysis.\n\nFocus on:\n1. Automations that save time (rent collection, reminders, notifications)\n2. Data quality improvements\n3. Process efficiency gains\n4. Integration opportunities\n\nFor n8n workflows, be specific about:\n- Exact trigger type (Webhook, Schedule, Manual)\n- Which Zoho CRM modules to use\n- Key processing steps\n- Expected outcomes\n\nPrioritize recommendations that:\n- Have high impact with low effort\n- Address identified data quality issues\n- Automate repetitive tasks\n- Improve tenant/guest communication\n\nAlways output valid JSON matching the requested structure.",
+          "maxIterations": 5,
+          "returnIntermediateSteps": false
+        }
+      },
+      "id": "node-24-recommendations",
+      "name": "AI Generate Recommendations",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [3960, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Gather all data from previous nodes\nconst startTime = $('Set Configuration').first().json.start_time;\nconst endTime = new Date().toISOString();\nconst durationMs = new Date(endTime) - new Date(startTime);\nconst durationSeconds = Math.round(durationMs / 1000);\n\n// Get aggregated module data\nconst aggregatedData = $('Aggregate All Analyses').first().json;\nconst moduleAnalyses = aggregatedData.all_modules || [];\n\n// Get cross-module analysis\nconst crossAnalysis = $('AI Cross-Module Analysis').first().json.output || {};\n\n// Get recommendations\nconst recommendations = $('AI Generate Recommendations').first().json.output || {};\n\n// Calculate API calls (2 initial + 3 per module)\nconst apiCallCount = 2 + (moduleAnalyses.length * 3);\n\n// Build comprehensive report\nconst report = {\n  report_metadata: {\n    generated_at: endTime,\n    started_at: startTime,\n    execution_time_seconds: durationSeconds,\n    api_calls_made: apiCallCount,\n    modules_analyzed: moduleAnalyses.length,\n    workflow_version: '1.0.0',\n    zoho_region: 'EU'\n  },\n  \n  executive_summary: crossAnalysis.executive_summary || {\n    overview: 'Analysis complete',\n    key_findings: [],\n    health_score: 0\n  },\n  \n  modules: moduleAnalyses.map(m => ({\n    api_name: m.api_name,\n    module_name: m.module_name,\n    purpose: m.module_analysis?.purpose || 'Unknown',\n    field_count: m.fields?.total_count || 0,\n    custom_field_count: m.fields?.custom_field_count || 0,\n    key_fields: m.module_analysis?.key_fields || [],\n    relationships: m.relationships?.lookups || [],\n    data_quality_score: m.module_analysis?.data_quality_score || 0,\n    data_quality_observations: m.module_analysis?.data_quality_observations || [],\n    automation_opportunities: m.module_analysis?.automation_opportunities || [],\n    improvement_suggestions: m.module_analysis?.improvement_suggestions || []\n  })),\n  \n  relationship_map: crossAnalysis.relationship_map || {},\n  \n  business_processes: crossAnalysis.business_processes || [],\n  \n  data_quality: crossAnalysis.data_quality || {},\n  \n  optimization_recommendations: recommendations.optimization_recommendations || [],\n  \n  suggested_n8n_workflows: recommendations.suggested_n8n_workflows || [],\n  \n  quick_wins: recommendations.quick_wins || [],\n  \n  long_term_improvements: recommendations.long_term_improvements || []\n};\n\n// Generate Markdown documentation\nconst markdown = `# Zoho CRM Custom Module Analysis Report\n\n> **Generated:** ${report.report_metadata.generated_at}  \n> **Execution Time:** ${report.report_metadata.execution_time_seconds} seconds  \n> **Modules Analyzed:** ${report.report_metadata.modules_analyzed}  \n> **API Calls:** ${report.report_metadata.api_calls_made}  \n> **Region:** ${report.report_metadata.zoho_region}\n\n---\n\n## Executive Summary\n\n${report.executive_summary.overview || 'Analysis complete.'}\n\n### Health Score: ${report.executive_summary.health_score || 'N/A'}/100\n\n### Key Findings\n${(report.executive_summary.key_findings || []).map(f => `- ${f}`).join('\\n')}\n\n### Top Strengths\n${(report.executive_summary.top_strengths || []).map(s => `- ${s}`).join('\\n')}\n\n### Top Opportunities\n${(report.executive_summary.top_opportunities || []).map(o => `- ${o}`).join('\\n')}\n\n---\n\n## Module Overview\n\n| Module | Purpose | Fields | Quality Score |\n|--------|---------|--------|---------------|\n${report.modules.map(m => `| ${m.module_name} | ${(m.purpose || '').substring(0, 50)}... | ${m.field_count} | ${m.data_quality_score}/100 |`).join('\\n')}\n\n---\n\n## Detailed Module Analysis\n\n${report.modules.map(m => `### ${m.module_name} (\\`${m.api_name}\\`)\n\n**Purpose:** ${m.purpose}\n\n**Statistics:**\n- Total Fields: ${m.field_count}\n- Custom Fields: ${m.custom_field_count}\n- Data Quality Score: ${m.data_quality_score}/100\n\n**Key Fields:** ${(m.key_fields || []).join(', ')}\n\n**Relationships:**\n${(m.relationships || []).map(r => `- Links to \\`${r.related_module}\\` via \\`${r.field_api_name}\\``).join('\\n') || '- No lookup relationships'}\n\n**Data Quality Observations:**\n${(m.data_quality_observations || []).map(o => `- ${o}`).join('\\n') || '- No issues identified'}\n\n**Automation Opportunities:**\n${(m.automation_opportunities || []).map(a => `- **${a.name}:** ${a.description}`).join('\\n') || '- None identified'}\n`).join('\\n---\\n\\n')}\n\n---\n\n## Relationship Map\n\n### Hub Modules\n${(report.relationship_map.hub_modules || []).map(h => `- **${h}**`).join('\\n')}\n\n### Data Flow\n${report.relationship_map.data_flow_description || 'Not analyzed'}\n\n### Module Connections Diagram\n\n\\`\\`\\`mermaid\n${report.relationship_map.mermaid_diagram || 'graph TD\\n  A[No diagram generated]'}\n\\`\\`\\`\n\n---\n\n## Business Processes\n\n${(report.business_processes || []).map((p, i) => `### ${i + 1}. ${p.name}\n\n${p.description}\n\n**Modules Involved:** ${(p.modules_involved || []).join(' → ')}\n\n**Typical Flow:** ${p.typical_flow}\n\n**Gaps Identified:**\n${(p.gaps_identified || []).map(g => `- ${g}`).join('\\n')}\n`).join('\\n')}\n\n---\n\n## Data Quality Assessment\n\n**Overall Score:** ${report.data_quality.overall_score || 'N/A'}/100\n\n**Strongest Modules:** ${(report.data_quality.strongest_modules || []).join(', ')}\n\n**Modules Needing Attention:** ${(report.data_quality.weakest_modules || []).join(', ')}\n\n### Critical Issues\n\n| Module | Issue | Severity | Recommendation |\n|--------|-------|----------|----------------|\n${(report.data_quality.critical_issues || []).map(i => `| ${i.module} | ${i.issue} | ${i.severity} | ${i.recommendation} |`).join('\\n')}\n\n---\n\n## Optimization Recommendations\n\n${(report.optimization_recommendations || []).map((r, i) => `### ${i + 1}. [${r.priority}] ${r.title}\n\n**Category:** ${r.category}  \n**Effort:** ${r.implementation_effort}  \n**Modules:** ${(r.modules_affected || []).join(', ')}\n\n${r.description}\n\n**Expected Impact:** ${r.expected_impact}\n`).join('\\n')}\n\n---\n\n## Suggested n8n Workflows\n\n${(report.suggested_n8n_workflows || []).map((w, i) => `### ${i + 1}. ${w.workflow_name}\n\n**Trigger:** ${w.trigger_type} - ${w.trigger_details}  \n**Complexity:** ${w.complexity}  \n**Time Saved:** ${w.estimated_time_saved}\n\n**Modules:** ${(w.modules_involved || []).join(', ')}\n\n${w.description}\n\n**Key Steps:**\n${(w.key_steps || []).map((s, j) => `${j + 1}. ${s}`).join('\\n')}\n`).join('\\n')}\n\n---\n\n## Quick Wins\n\n| Action | Time to Implement | Impact |\n|--------|-------------------|--------|\n${(report.quick_wins || []).map(q => `| ${q.action} | ${q.time_to_implement} | ${q.impact} |`).join('\\n')}\n\n---\n\n## Long-Term Improvements\n\n${(report.long_term_improvements || []).map((l, i) => `### ${i + 1}. ${l.initiative}\n\n${l.description}\n\n**Timeline:** ${l.timeline}  \n**Expected ROI:** ${l.expected_roi}\n`).join('\\n')}\n\n---\n\n*Report generated by Zoho CRM AI Analyzer Workflow*\n`;\n\nreturn [{\n  json: {\n    report_json: report,\n    report_markdown: markdown,\n    status: 'completed',\n    completed_at: endTime\n  }\n}];"
+      },
+      "id": "node-25-generate-report",
+      "name": "Generate Final Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4180, 300]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "output-1",
+              "name": "json_report",
+              "value": "={{ $json.report_json }}",
+              "type": "object"
+            },
+            {
+              "id": "output-2",
+              "name": "markdown_report",
+              "value": "={{ $json.report_markdown }}",
+              "type": "string"
+            },
+            {
+              "id": "output-3",
+              "name": "status",
+              "value": "completed",
+              "type": "string"
+            },
+            {
+              "id": "output-4",
+              "name": "completed_at",
+              "value": "={{ $json.completed_at }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false
+      },
+      "id": "node-26-output",
+      "name": "Output Results",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [4400, 300]
+    }
+  ],
+  "connections": {
+    "Start Workflow": {
+      "main": [
+        [
+          {
+            "node": "Set Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Configuration": {
+      "main": [
+        [
+          {
+            "node": "Test Authentication",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Authentication": {
+      "main": [
+        [
+          {
+            "node": "Check Auth Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Auth Status": {
+      "main": [
+        [
+          {
+            "node": "Get All Modules",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Auth Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Modules": {
+      "main": [
+        [
+          {
+            "node": "Filter Custom Modules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Custom Modules": {
+      "main": [
+        [
+          {
+            "node": "Create Module Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Module Queue": {
+      "main": [
+        [
+          {
+            "node": "Process Modules Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Modules Loop": {
+      "main": [
+        [
+          {
+            "node": "Get Module Details",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aggregate All Analyses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Module Details": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit Delay 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit Delay 1": {
+      "main": [
+        [
+          {
+            "node": "Get Module Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Module Fields": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit Delay 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit Delay 2": {
+      "main": [
+        [
+          {
+            "node": "Get Sample Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Sample Records": {
+      "main": [
+        [
+          {
+            "node": "Merge Module Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Module Data": {
+      "main": [
+        [
+          {
+            "node": "AI Module Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Module Analysis": {
+      "main": [
+        [
+          {
+            "node": "Store Module Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI GPT-4o-mini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Module Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Module Analysis Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Module Analysis",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Module Analysis": {
+      "main": [
+        [
+          {
+            "node": "Process Modules Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate All Analyses": {
+      "main": [
+        [
+          {
+            "node": "AI Cross-Module Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Cross-Module Analysis": {
+      "main": [
+        [
+          {
+            "node": "AI Generate Recommendations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI GPT-4o": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Cross-Module Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "AI Generate Recommendations",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cross Analysis Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Cross-Module Analysis",
+            "type": "ai_outputParser",
+            "index": 0
+          },
+          {
+            "node": "AI Generate Recommendations",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Generate Recommendations": {
+      "main": [
+        [
+          {
+            "node": "Generate Final Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Final Report": {
+      "main": [
+        [
+          {
+            "node": "Output Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "timeout": 600,
+    "timezone": "Africa/Nairobi"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "AI Agent",
+      "createdAt": "2026-01-30T00:00:00.000Z",
+      "updatedAt": "2026-01-30T00:00:00.000Z"
+    },
+    {
+      "name": "Zoho CRM",
+      "createdAt": "2026-01-30T00:00:00.000Z",
+      "updatedAt": "2026-01-30T00:00:00.000Z"
+    },
+    {
+      "name": "Property Management",
+      "createdAt": "2026-01-30T00:00:00.000Z",
+      "updatedAt": "2026-01-30T00:00:00.000Z"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2026-01-30T00:00:00.000Z",
+  "versionId": "1.0.0"
+}

@@ -1,0 +1,7 @@
+{
+  "n8n": {
+    "hostname": "YOUR_N8N_HOSTNAME.hstgr.cloud",
+    "apiKey": "YOUR_N8N_API_KEY",
+    "workflowId": "YOUR_WORKFLOW_ID"
+  }
+}
