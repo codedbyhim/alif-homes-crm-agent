@@ -1,0 +1,38 @@
+# Environment and secrets
+.env
+*.env
+.env.*
+secrets.json
+credentials.json
+
+# n8n MCP config (contains API keys)
+.mcp.json
+
+# JavaScript files with hardcoded API keys - DO NOT COMMIT
+*.js
+
+# PowerShell scripts
+*.ps1
+
+# Node modules
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Backup files
+*.backup
+*.bak
+
+# Temporary files
+*.tmp
+*.temp
